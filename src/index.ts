@@ -1239,6 +1239,57 @@ class Remarkable implements RemarkableApi {
     return await this.#editContent(hash, content, "TemplateType", refresh);
   }
 
+  async #editFileRaw(
+    id: string,
+    hash: string,
+    fileType: "epub" | "pdf",
+    buffer: Uint8Array,
+  ): Promise<[RawListEntry, Promise<[void, void]>]> {
+    const entries = await this.raw.getEntries(hash);
+    const fileInd = entries.findIndex((ent) => ent.id.endsWith(`.${fileType}`));
+    const fileEntry = entries[fileInd];
+    if (fileEntry === undefined) {
+      throw new Error("internal error: couldn't find metadata in entry hash");
+    }
+
+    const [newFileEntry, uploadFile] = await this.raw.putFile(`${id}.${fileType}`, buffer);
+
+
+    entries[fileInd] = newFileEntry;
+    const [result, uploadEntries] = await this.raw.putEntries(id, entries);
+    const upload = Promise.all([uploadFile, uploadEntries]);
+    return [result, upload];
+  }
+
+  async #editFile(
+    hash: string,
+    fileType: "epub" | "pdf",
+    buffer: Uint8Array,
+    refresh: boolean = false,
+  ): Promise<HashEntry> {
+    const [rootHash, generation] = await this.#getRootHash(refresh);
+    const entries = await this.raw.getEntries(rootHash);
+    const hashInd = entries.findIndex((ent) => ent.hash === hash);
+    const hashEnt = entries[hashInd];
+    if (hashEnt === undefined) {
+      throw new HashNotFoundError(hash);
+    }
+    const [newEnt, uploadEnt] = await this.#editFileRaw(
+      hashEnt.id,
+      hash,
+      fileType,
+      buffer,
+    );
+    entries[hashInd] = newEnt;
+    const [rootEntry, uploadRoot] = await this.raw.putEntries("root", entries);
+
+    await Promise.all([uploadEnt, uploadRoot]);
+
+    await this.#putRootHash(rootEntry.hash, generation);
+    return { hash: newEnt.hash };
+  }
+
+
   async #editMetaRaw(
     id: string,
     hash: string,
@@ -1286,6 +1337,15 @@ class Remarkable implements RemarkableApi {
 
     await this.#putRootHash(rootEntry.hash, generation);
     return { hash: newEnt.hash };
+  }
+
+  /** edit a file */
+  async replacePdf(
+    hash: string,
+    buffer: Uint8Array,
+    refresh: boolean = false
+  ): Promise<HashEntry> {
+    return await this.#editFile(hash, "pdf", buffer, refresh);
   }
 
   /** move an entry */
