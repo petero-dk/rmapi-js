@@ -689,7 +689,9 @@ async function digest(buff: Uint8Array): Promise<string> {
     // NOTE this is type hinted wrong, but it does work correctly on a uint8 view
     buff as unknown as ArrayBuffer,
   );
-  return new Uint8Array(digest).toHex();
+  return Array.from(new Uint8Array(digest))
+  .map(b => b.toString(16).padStart(2, '0'))
+  .join('');
 }
 
 /**
