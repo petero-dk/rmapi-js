@@ -690,8 +690,8 @@ async function digest(buff: Uint8Array): Promise<string> {
     buff as unknown as ArrayBuffer,
   );
   return Array.from(new Uint8Array(digest))
-  .map(b => b.toString(16).padStart(2, '0'))
-  .join('');
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 /**
